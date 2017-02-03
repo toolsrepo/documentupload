@@ -1,0 +1,142 @@
+<html>
+<head>
+  <script src="/js/jquery-1.11.2.min.js"></script>
+</head>
+
+<body>
+	<div id="DialogMask" ></div> 
+	<form id="upload-file-form" >
+		<h1>Document Upload for Loan Id: <input id="mortgageApplicationID" name="mortgageApplicationID" type="text" value="" /></h1>
+		<p>Document Type: <select id="documentTypeId" name="documentTypeId"></select> 
+		<input id="documentPayload" type="file" name="documentPayload" accept=".pdf" />
+		<input id="upload-file-button" type="button" value="Upload" />
+	</form>
+	
+	<input id="retrieve-file-button" type="button" value="Retrieve Uploaded Documents" />
+	<table id="documentListTable" border="1">
+	</table>
+</body>
+
+
+<!-- Javascript functions -->
+<script>
+	var basepath="http://localhost:8090/rest";
+	
+	
+    $(document).ready(function() {
+      	$("#upload-file-button").on("click", uploadFile);
+      	$("#retrieve-file-button").on("click", getDocumentsAlreadyUploaded);
+      	getDocumentListToUpload();
+      	loanId = getLoanApplicationId();
+      	$("#mortgageApplicationID").val(loanId);
+      	getDocumentsAlreadyUploaded();
+     });
+    
+    function getLoanApplicationId() {
+    	var path = window.location.pathname;
+    	var loanId = path.substring(path.lastIndexOf("/")+1, path.length);
+    	return loanId;
+    }
+    
+    function uploadFile() {
+      if($("#mortgageApplicationID").val().length <= 0 || $("#documentTypeId").val().length <= 0) {
+      	alert("Both mortgageApplicationID and Document Type are mandatory.");
+      	return;
+      }
+      
+      /*if(!check_file()){
+      	return;
+      }*/
+      
+      $.ajax({
+        url: "/rest/document/upload",
+        type: "POST",
+        data: new FormData($("#upload-file-form")[0]),
+        enctype: 'multipart/form-data',
+        processData: false,
+        contentType: false,
+        cache: false,
+        success: function () {
+          $("#upload-file-message").text("File succesfully uploaded");
+          getDocumentsAlreadyUploaded();
+        },
+        error: function () {
+          $("#upload-file-message").text("File not uploaded (perhaps it's too much big)");
+        }
+      });
+    } 
+    
+    function getDocumentListToUpload(){
+    	 $.ajax({
+                type: "GET",
+                url: '/rest/document/documentlist',
+                dataType: 'json',
+                cache: false,
+                success: function(json) {
+                    var $el = $("#documentTypeId");
+                    $el.empty(); // remove old options
+                    $el.append($("<option></option>").attr("value", '').text('Please Select'));
+                	for(var prop in json) {
+                        $el.append($("<option></option>").attr("value", json[prop].documentTypeId).text(json[prop].documentDescription));
+                    }
+                }
+            });
+    }
+    
+    function getDocumentsAlreadyUploaded(){
+    	 $.ajax({
+                type: "GET",
+                url: '/rest/document/retrieveDocumentList/'+$("#mortgageApplicationID").val(),
+                dataType: 'json',
+                cache: false,
+                success: function(json) {
+                    drawTable(json);
+                }
+            });
+    }
+    
+    function drawTable(data) {
+    	$("#documentListTable").empty();
+    	var row = $("<tr />");
+    	$("#documentListTable").append(row)
+    	row.append($("<th>Document Type Id</th>"));
+        row.append($("<th>Document Type Name</th>"));
+        row.append($("<th>View/Download</th>"));
+        row.append($("<th>Delete</th>"));
+    	for (var i = 0; i < data.length; i++) {
+        	drawRow(data[i]);
+    	}
+	}
+	
+	function drawRow(rowData) {
+    	var row = $("<tr />")
+    	$("#documentListTable").append(row); //this will append tr element to table... keep its reference for a while since we will add cels into it
+    	row.append($("<td id='rowDocumentTypeId'>" + rowData.documentTypeId + "</td>"));
+    	row.append($("<td>" + rowData.documentDescription + "</td>"));
+    	row.append($("<td><a href='#' onclick='downloadDocument(this)' >" + basepath + rowData.documentDownloadLink + "</a></td>"));
+    	row.append($("<td ><a href='#' onclick='deleteDocument()' >Delete</a></td>"));
+	}
+	
+	function downloadDocument(anch) {
+		window.open(anch.innerHTML, "_blank");
+	}
+	
+	function deleteDocument() {
+		mortgageApplicationID = $("#mortgageApplicationID").val();
+	    documentTypeId = $("#rowDocumentTypeId").html();
+	  $.ajax({
+        url: "/rest/document/deleteDocument/"+mortgageApplicationID+"/"+documentTypeId,
+        type: "POST",
+        dataType: 'json',
+        cache: false,
+        success: function (result) {
+          getDocumentsAlreadyUploaded();
+        },
+        error: function () {
+          $("#upload-file-message").text("File not uploaded (perhaps it's too much big)");
+        }
+      });
+	}
+    
+</script>
+</html>
